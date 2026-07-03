@@ -31,6 +31,28 @@ static int escolher_estacao(Simulacao *sim, Robo *r)
     return melhor;
 }
 
+/* Ocioso NAO pode acampar nas celulas vizinhas a entrada da esteira: essas
+ * poucas celulas sao o unico acesso para um coletor CARREGADO inserir seu
+ * pacote. Se um coletor ocioso estiver adjacente a entrada, ele da um passo
+ * para a celula livre mais distante dela, liberando o gargalo (senao, quando
+ * os pacotes acabam, coletores ociosos podem bloquear o ultimo coletor
+ * carregado e a simulacao nunca atinge a meta). */
+static void afastar_da_entrada(Simulacao *sim, Robo *r)
+{
+    static const int DX[4] = { 1, -1, 0, 0 };
+    static const int DY[4] = { 0, 0, 1, -1 };
+    Vec2 melhor = r->pos;
+    int  melhor_d = distancia_manhattan(r->pos, sim->entrada);
+    for (int i = 0; i < 4; i++) {
+        Vec2 np = { r->pos.x + DX[i], r->pos.y + DY[i] };
+        int d = distancia_manhattan(np, sim->entrada);
+        if (d > melhor_d) { melhor = np; melhor_d = d; }
+    }
+    if ((melhor.x != r->pos.x || melhor.y != r->pos.y) &&
+        mapa_tenta_mover(&sim->mapa, r->pos, melhor, r->id))
+        r->pos = melhor;
+}
+
 /* Anda passo a passo ate ficar adjacente a 'alvo'. Retorna 1 ao chegar, ou 0
  * se a simulacao foi encerrada antes. Um passo por 'tick' (cfg.passo_ms). */
 static int ir_ate(Simulacao *sim, Robo *r, Vec2 alvo)
@@ -54,6 +76,8 @@ void *thread_coletor(void *arg)
         int est = escolher_estacao(sim, r);
         if (est < 0) {                      /* nenhuma estacao tem pacote agora */
             r->estado = ROBO_OCIOSO;
+            if (distancia_manhattan(r->pos, sim->entrada) <= 1)
+                afastar_da_entrada(sim, r); /* nao bloqueia o acesso a esteira */
             dormir_ms(sim->cfg.passo_ms);   /* espera antes de reavaliar */
             continue;
         }
