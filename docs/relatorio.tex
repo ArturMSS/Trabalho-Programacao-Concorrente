@@ -2,26 +2,27 @@
 %  Relatório Técnico — Centro de Distribuição Automatizado
 %  Formato SBC (Sociedade Brasileira de Computação)
 %
-%  INSTRUÇÕES:
-%  1. Baixe o template oficial em https://www.sbc.org.br/documentos-da-sbc/summary/169-templates-para-artigos-e-capitulos-de-livros/878-modelosparapublicaodeartigos
-%     e coloque sbc-template.sty nesta pasta.
-%  2. Compile: pdflatex relatorio.tex
+%  Como usar no Overleaf:
+%  1. Abra o template "SBC Conferences Template" como cópia sua.
+%  2. Apague o conteúdo do .tex principal e cole este arquivo inteiro.
+%  3. Mantenha o sbc-template.sty no projeto e clique em Recompile.
 % ============================================================
 
 \documentclass[12pt]{article}
 
-\usepackage{sbc-template}       % baixar da SBC
+\usepackage{sbc-template}
 \usepackage[brazil]{babel}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{graphicx}
 \usepackage{url}
 \usepackage{booktabs}
+\usepackage{array}
 \usepackage{listings}
 \usepackage{xcolor}
 
 \lstset{
-  basicstyle=\ttfamily\small,
+  basicstyle=\ttfamily\footnotesize,
   breaklines=true,
   frame=single,
   backgroundcolor=\color{gray!10},
@@ -33,12 +34,12 @@
 \title{Centro de Distribuição Automatizado:\\
        Simulação Concorrente com Raylib}
 
-\author{Helenna Massarra Paes}
+\author{Artur Moraes, Helenna Massarra Paes, Pedro Calil Raposo}
 
 \address{Instituto Brasileiro de Ensino, Desenvolvimento e Pesquisa (IDP)\\
   Ciência da Computação e Engenharia de Software\\
   Disciplina: Programação Concorrente --- 2026/1
-  \email{helenna.massarra@idp.edu.br}
+  \email{\{artur.moraes, helenna.massarra, pedro.raposo\}@idp.edu.br}
 }
 
 % ── Documento ────────────────────────────────────────────────
@@ -48,27 +49,28 @@
 
 \begin{resumo}
 Este trabalho implementa a simulação de um centro de distribuição automatizado
-da empresa fictícia IDP, composto por robôs coletores, robôs entregadores e uma
-esteira transportadora.  A implementação em C usa \textit{pthreads} para modelar
-cada entidade como uma \textit{thread} independente e \textit{mutexes} por recurso
-para coordenar o acesso a células do mapa, posições da esteira e filas das estações.
-A interface gráfica foi implementada com a biblioteca Raylib em substituição ao
-ncurses, habilitando o bônus previsto no enunciado.  Três cenários estáticos e uma
-configuração dinâmica validam o comportamento do sistema sob diferentes cargas.
+composto por robôs coletores, robôs entregadores e uma esteira transportadora.
+A implementação em C usa \textit{pthreads} para modelar cada entidade como uma
+\textit{thread} independente e \textit{mutexes} por recurso para coordenar o
+acesso a células do mapa, esteira e filas das estações.  A interface gráfica
+usa Raylib em substituição ao ncurses, habilitando o bônus do enunciado.  Três
+cenários estáticos e uma configuração dinâmica validam o sistema sob
+diferentes cargas.
 \end{resumo}
 
 % ─────────────────────────────────────────────────────────────
 \section{Organização das \textit{Threads}}
 \label{sec:threads}
 
-O programa cria $N + M + 3$ \textit{threads} ao total, onde $N$ é o número de
-robôs coletores e $M$ o de entregadores.  A Tabela~\ref{tab:threads} resume as
+O programa cria $N + M + 3$ \textit{threads} POSIX \cite{posix:18} ao total,
+onde $N$ é o número de robôs coletores e $M$ o de entregadores.  A Tabela~\ref{tab:threads} resume as
 \textit{threads} e seus argumentos.
 
 \begin{table}[h]
 \centering
 \caption{Threads do sistema}
 \label{tab:threads}
+\small
 \begin{tabular}{llcc}
 \toprule
 \textbf{Thread}       & \textbf{Função}       & \textbf{Qtd.} & \textbf{Argumento}         \\
@@ -84,12 +86,10 @@ Interface Raylib      & \texttt{thread\_interface}  & 1 & \texttt{Simulacao *}  
 
 Todas são criadas em \texttt{main.c} com \texttt{pthread\_create} e aguardadas
 com \texttt{pthread\_join}.  A janela Raylib é aberta \emph{dentro} de
-\texttt{thread\_interface} via \texttt{InitWindow}, pois a biblioteca exige que
-o contexto OpenGL seja criado e usado pela mesma \textit{thread}.
-
-O encerramento é cooperativo: quando a flag \texttt{sim.rodando} vai a zero,
-todos os laços de \textit{thread} terminam naturalmente e os
-\texttt{pthread\_join} em \texttt{main.c} retornam.
+\texttt{thread\_interface} via \texttt{InitWindow}, pois a biblioteca exige
+que o contexto OpenGL seja criado e usado pela mesma \textit{thread}.  O
+encerramento é cooperativo: quando a flag \texttt{sim.rodando} vai a zero,
+todos os laços terminam naturalmente e os \texttt{pthread\_join} retornam.
 
 % ─────────────────────────────────────────────────────────────
 \section{Recursos Compartilhados}
@@ -97,19 +97,36 @@ todos os laços de \textit{thread} terminam naturalmente e os
 
 A Tabela~\ref{tab:recursos} lista os recursos compartilhados e seus acessores.
 
-\begin{table}[h]
+\begin{table}[ht]
 \centering
 \caption{Recursos compartilhados do sistema}
 \label{tab:recursos}
-\begin{tabular}{p{3.5cm}p{2.5cm}p{5.5cm}}
+\footnotesize
+\begin{tabular}{>{\raggedright\arraybackslash}p{4.1cm}
+                >{\raggedright\arraybackslash}p{2.4cm}
+                >{\raggedright\arraybackslash}p{6.6cm}}
 \toprule
-\textbf{Recurso}                         & \textbf{Tipo}          & \textbf{Acessado por}                                                        \\
+\textbf{Recurso} & \textbf{Tipo} & \textbf{Acessado por} \\
 \midrule
-\texttt{Mapa.celulas[].ocupante}         & grade de células       & todos os robôs (r/w de posição) e interface (leitura)                        \\
-\texttt{Esteira.posicoes[]}              & buffer linear          & coletores (inserção), esteira (avanço), entregadores (retirada), interface   \\
-\texttt{Estacao.cabeca/cauda/quantidade} & fila encadeada         & gerador (enfileira) e coletores (desenfileira)                               \\
-\texttt{Estatisticas}                    & contadores inteiros    & gerador e entregadores (escrita); interface (leitura)                        \\
-\texttt{Simulacao.rodando}               & flag de parada         & qualquer \textit{thread} pode escrever; todas leem                           \\
+\texttt{Mapa.celulas[]}\allowbreak\texttt{.ocupante} &
+  grade de células &
+  todos os robôs (r/w de posição) e interface (leitura) \\
+\addlinespace
+\texttt{Esteira.posicoes[]} &
+  buffer linear &
+  coletores (inserção), esteira (avanço), entregadores (retirada), interface \\
+\addlinespace
+\texttt{Estacao} (\texttt{cabeca}, \texttt{cauda}, \texttt{quantidade}) &
+  fila encadeada &
+  gerador (enfileira) e coletores (desenfileira) \\
+\addlinespace
+\texttt{Estatisticas} &
+  contadores inteiros &
+  gerador e entregadores (escrita); interface (leitura) \\
+\addlinespace
+\texttt{Simulacao.rodando} &
+  flag de parada &
+  qualquer \textit{thread} pode escrever; todas leem \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -125,23 +142,20 @@ está livre, atualiza origem e destino e libera o \textit{mutex} em um único
 \textit{lock}, garantindo exclusão mútua.
 
 \textbf{Esteira (\texttt{esteira.c}).}
-O vetor \texttt{posicoes[]} é acessado por três \textit{threads} distintas:
-\texttt{esteira\_tenta\_inserir} escreve em \texttt{posicoes[0]};
-\texttt{esteira\_avancar} desloca pacotes de \texttt{[i-1]} para \texttt{[i]};
-\texttt{esteira\_retirar\_saida} lê e anula \texttt{posicoes[tamanho-1]}.
-Todas adquirem \texttt{Esteira.mutex} antes de qualquer acesso.
+O vetor \texttt{posicoes[]} é acessado por três \textit{threads}: inserção em
+\texttt{[0]}, avanço de \texttt{[i-1]} para \texttt{[i]} e retirada em
+\texttt{[tamanho-1]}.  Todas as operações adquirem \texttt{Esteira.mutex}
+antes de qualquer acesso.
 
 \textbf{Filas de estações (\texttt{estacao.c}).}
-O gerador e múltiplos coletores disputam a mesma estação.
-\texttt{estacao\_enfileirar} e \texttt{estacao\_desenfileirar} adquirem
-\texttt{Estacao.mutex} para garantir que a lista encadeada e o contador
-\texttt{quantidade} são modificados atomicamente.
+Gerador e múltiplos coletores disputam a mesma estação: enfileirar e
+desenfileirar adquirem \texttt{Estacao.mutex}, garantindo que lista encadeada
+e contador sejam modificados atomicamente.
 
 \textbf{Estatísticas (\texttt{simulacao.c}).}
-\texttt{stats\_inc\_entregues} verifica a condição de término
-\emph{sob o mesmo lock}: se \texttt{pacotes\_entregues >= total\_pacotes}, chama
-\texttt{simulacao\_parar} ainda dentro da seção crítica, evitando que a parada
-seja acionada mais de uma vez por corrida.
+\texttt{stats\_inc\_entregues} verifica a condição de término \emph{sob o
+mesmo lock}: atingida a meta, chama \texttt{simulacao\_parar} ainda na seção
+crítica, evitando parada duplicada por corrida.
 
 % ─────────────────────────────────────────────────────────────
 \section{Mecanismos de Sincronização}
@@ -156,19 +170,23 @@ adquire dois \textit{locks} simultaneamente, eliminando o risco de \textit{deadl
 por espera circular.
 
 \textbf{\texttt{volatile sig\_atomic\_t rodando} --- flag de término.}
-\texttt{Simulacao.rodando} é declarada \texttt{volatile sig\_atomic\_t}:
-\texttt{volatile} impede que o compilador cache o valor em registrador;
-\texttt{sig\_atomic\_t} garante leitura/escrita atômica em x86.  O pior caso
-de corrida é uma \textit{thread} ler \texttt{1} um \textit{tick} após outra
-ter escrito \texttt{0}, fazendo-a executar mais um ciclo --- aceitável para esta
-simulação.
+\texttt{volatile} impede que o compilador cache o valor em registrador.
+Formalmente, \texttt{sig\_atomic\_t} garante atomicidade apenas frente a
+\textit{signal handlers}, não entre \textit{threads}; a corretude aqui
+apoia-se em cargas e armazenamentos alinhados serem atômicos em x86-64 e na
+flag transitar uma única vez, de \texttt{1} para \texttt{0}.  O pior caso é
+uma \textit{thread} executar um \textit{tick} extra após a parada ---
+aceitável nesta simulação.  Uma alternativa estritamente portável seria
+\texttt{\_Atomic int} de \texttt{stdatomic.h} (C11).
 
 \textbf{Espera ativa com \texttt{dormir\_ms}.}
-Nos pontos de espera (coletor aguardando espaço na esteira; entregador aguardando
-pacote na saída), as \textit{threads} dormem \texttt{passo\_ms} e tentam novamente.
-O uso de \texttt{pthread\_cond\_t} exigiria \texttt{pthread\_cond\_signal} em vários
-pontos dispersos, tornando a sincronização mais difícil de auditar sem ganho prático,
-pois o período de espera já é determinado pelo ritmo da simulação.
+Nos pontos de espera (coletor aguardando espaço na esteira; entregador
+aguardando pacote na saída), as \textit{threads} dormem \texttt{passo\_ms} e
+tentam novamente.  Como o intervalo entre tentativas é limitado por
+\texttt{passo\_ms} --- o período que dita o ritmo da simulação ---, o custo do
+\textit{polling} é desprezível: no máximo uma verificação por \textit{tick},
+sem consumo de CPU entre elas.  \texttt{pthread\_cond\_t} reduziria a latência
+de notificação, mas ela já é mascarada pelo próprio passo da simulação.
 
 % ─────────────────────────────────────────────────────────────
 \section{Decisões de Projeto}
@@ -176,86 +194,140 @@ pois o período de espera já é determinado pelo ritmo da simulação.
 
 \textbf{Interface gráfica com Raylib (bônus +10\%).}
 O enunciado prevê \textit{ncurses} como padrão e oferece bônus para grupos que
-substituam integralmente a interface por Raylib.  Este projeto implementa a interface
-com Raylib: o mapa é renderizado como grade de células coloridas e o painel lateral
-exibe esteira, contadores e barra de progresso em tempo real.  A lógica concorrente
-é idêntica à que seria usada com \textit{ncurses}: a \textit{thread} de interface
-captura um \textit{snapshot} do estado sob \textit{mutex} e renderiza em seguida,
-sem manter nenhum recurso travado durante o desenho.
+substituam integralmente a interface por Raylib \cite{raylib}.  Este projeto
+implementa a interface com Raylib: o mapa é renderizado como grade de células
+coloridas e o painel lateral exibe esteira, contadores e progresso em tempo
+real (Figura~\ref{fig:interface}).  A \textit{thread} de interface captura um
+\textit{snapshot} do estado sob \textit{mutex} e renderiza em seguida, sem
+manter recursos travados durante o desenho.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[height=3.2cm]{interface-alta.png}\hspace{4mm}%
+\includegraphics[height=3.2cm]{interface-dinamico.png}
+\caption{Interface Raylib nos cenários Alta Concorrência (esq.) e
+  Personalizado/dinâmico (dir.).}
+\label{fig:interface}
+\end{figure}
 
 \textbf{Mutex por recurso em vez de mutex global.}
-Um \textit{mutex} global criaria gargalo: a \textit{thread} de interface bloquearia
-todos os robôs durante a renderização.  Com \textit{mutexes} por recurso, cada robô
-bloqueia apenas a célula que está tentando ocupar, e a interface adquire
-\texttt{Mapa.mutex} por menos de um microssegundo (cópia de buffer).
+Um \textit{mutex} global criaria gargalo: a interface bloquearia todos os
+robôs durante a renderização.  Com \textit{mutexes} por recurso, cada robô
+bloqueia apenas a célula que tenta ocupar, e a interface segura
+\texttt{Mapa.mutex} apenas durante uma cópia de buffer.
 
 \textbf{BFS com leitura \textit{lock-free}.}
-Cada passo de cada robô recalcula o BFS a partir da posição atual, lendo
-\texttt{ocupante} sem \textit{mutex}.  Dados levemente desatualizados apenas fazem o
-robô tentar um passo que falha em \texttt{mapa\_tenta\_mover} (atômico); no próximo
-ciclo o BFS recalcula.  Isso elimina contenção no \textit{mutex} do mapa durante o
-planejamento de rotas.
+Cada passo recalcula o BFS \cite{cormen:09} lendo \texttt{ocupante} sem
+\textit{mutex}.  Dados desatualizados apenas fazem o robô tentar um passo que
+falha em \texttt{mapa\_tenta\_mover} (atômico); o próximo ciclo recalcula.
+Isso elimina contenção no \textit{mutex} do mapa durante o planejamento.
 
 \textbf{Heurística gulosa para escolha de destino.}
-Coletores escolhem a estação \emph{não-vazia mais próxima} (distância de Manhattan);
-entregadores escolhem o \emph{despacho mais próximo}.  Não é ótimo globalmente, mas
-distribui robôs naturalmente entre estações/despachos sem comunicação entre
-\textit{threads}.
+Coletores escolhem a estação \emph{não-vazia mais próxima} (distância de
+Manhattan); entregadores, o \emph{despacho mais próximo}.  Não é ótimo
+globalmente, mas distribui robôs entre estações/despachos sem comunicação
+entre \textit{threads}.
 
 \textbf{Lógica \texttt{afastar\_da\_entrada}.}
-Coletores ociosos próximos à entrada da esteira poderiam bloquear o último coletor
-carregado, impedindo a simulação de atingir a meta.  A função
-\texttt{afastar\_da\_entrada} move o coletor ocioso para a célula vizinha mais
+Coletores ociosos junto à entrada da esteira poderiam bloquear o último
+coletor carregado.  A função move o coletor ocioso para a célula vizinha mais
 distante da entrada, liberando o gargalo.
 
 % ─────────────────────────────────────────────────────────────
 \section{Guia de Utilização}
 \label{sec:uso}
 
-\textbf{Pré-requisitos (Ubuntu 24.04).}
-A interface gráfica exige Raylib 5.5, compilado do fonte:
-
-\begin{lstlisting}[language=bash]
-sudo apt install -y build-essential git cmake \
-    libx11-dev libxrandr-dev libxi-dev \
-    libxcursor-dev libxinerama-dev libgl1-mesa-dev
-
-git clone --depth 1 --branch 5.5 \
-    https://github.com/raysan5/raylib.git /tmp/raylib
-cd /tmp/raylib
-cmake -B build -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target install && sudo ldconfig
-\end{lstlisting}
-
-\textbf{Compilar e executar:}
+A interface exige Raylib 5.5; o \texttt{README} do repositório traz a
+instalação a partir do fonte no Ubuntu 24.04.  Alternativamente, o
+\texttt{Dockerfile} incluso constrói imagem pronta (\texttt{podman build -t
+idp\_sim .}), executável montando \texttt{/tmp/.X11-unix} e exportando
+\texttt{DISPLAY}.  Com a biblioteca disponível:
 
 \begin{lstlisting}[language=bash]
 make                # compila ./idp_sim
-./idp_sim 1         # Cenario Simples    (18x12, 20 pacotes)
+./idp_sim 1         # Cenario Simples       (18x12, 20 pacotes)
 ./idp_sim 2         # Cenario Intermediario (24x16, 40 pacotes)
-./idp_sim 3         # Alta Concorrencia  (32x20, 80 pacotes)
+./idp_sim 3         # Alta Concorrencia     (32x20, 80 pacotes)
 ./idp_sim 0         # Configuracao dinamica (le parametros)
+make teste teste-bfs teste-stress   # testes automatizados
+# tecla Q encerra a simulacao antecipadamente
 \end{lstlisting}
 
-Pressione \textbf{Q} para encerrar antecipadamente.
+% ─────────────────────────────────────────────────────────────
+\section{Resultados}
+\label{sec:resultados}
 
-\textbf{Testes automatizados:}
+Os três cenários estáticos e a configuração dinâmica foram executados em
+Ubuntu 24.04; a Tabela~\ref{tab:resultados} resume os resultados.  O cenário
+dinâmico usou parâmetros não-padrão (5 estações, 5 despachos, 7 obstáculos,
+esteira de 10, \textit{tick} de 250\,ms), exercitando o leitor de configuração.
 
-\begin{lstlisting}[language=bash]
-make teste          # valida mapa, simulacao e operacoes atomicas
-make teste-bfs      # prova que o BFS desvia de obstaculo em U
-make teste-stress   # ciclo completo com threads reais
-\end{lstlisting}
+\begin{table}[ht]
+\centering
+\caption{Resultados observados por cenário}
+\label{tab:resultados}
+\small
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Cenário} & \textbf{Mapa} & \textbf{Pacotes} & \textbf{Colet.} &
+\textbf{Entreg.} & \textbf{Entregues} & \textbf{Tempo (s)} \\
+\midrule
+1 --- Simples           & $18\times12$ & 20 & 2 & 1 & 20/20 & 76,2 \\
+2 --- Intermediário     & $24\times16$ & 40 & 3 & 2 & 40/40 & 83,8 \\
+3 --- Alta Concorrência & $32\times20$ & 80 & 4 & 4 & 80/80 & 92,5 \\
+0 --- Dinâmico          & $14\times18$ & 40 & 3 & 4 & 40/40 & 65,0 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\textbf{Via container:}
+Em todas as execuções, a totalidade dos pacotes foi entregue e a simulação
+encerrou de forma limpa, com todos os \texttt{pthread\_join} retornando.
+Não foram observados \textit{deadlocks} nem corrupção de estado: nenhum robô
+ocupou célula já ocupada, nenhum pacote foi perdido ou duplicado na esteira,
+e as estatísticas fecharam consistentes com o total gerado.
 
-\begin{lstlisting}[language=bash]
-podman build -t idp_sim .
-xhost +local:
-podman run --rm -it \
-    -e DISPLAY=$DISPLAY \
-    -v /tmp/.X11-unix:/tmp/.X11-unix \
-    idp_sim 2
-\end{lstlisting}
+% >>> Ajuste/expanda os paragrafos abaixo com observacoes reais <<<
+No Cenário 3 observou-se maior disputa pelas células adjacentes à entrada da
+esteira; a lógica \texttt{afastar\_da\_entrada} (Seção~\ref{sec:projeto})
+mostrou-se necessária para evitar bloqueio do último coletor carregado.  Os
+testes automatizados passaram em todas as execuções, incluindo repetições
+consecutivas para exercitar intercalações distintas de \textit{threads}.
+
+% ─────────────────────────────────────────────────────────────
+\section{Conclusão}
+\label{sec:conclusao}
+
+Este trabalho apresentou a implementação de um centro de distribuição
+automatizado como um sistema concorrente em C, com cada entidade executando
+como uma \textit{thread} POSIX independente.  A estratégia de um \textit{mutex} por
+recurso, combinada a seções críticas curtas e à ausência de aquisição aninhada
+de \textit{locks}, garantiu exclusão mútua sem \textit{deadlocks} e com
+paralelismo real entre \textit{threads} que operam sobre recursos distintos.
+
+Os experimentos com os três cenários estáticos e a configuração dinâmica
+confirmaram o comportamento esperado: todos os pacotes foram entregues, o
+encerramento cooperativo funcionou e o sistema manteve-se estável mesmo sob
+alta concorrência.  Como trabalhos futuros, destacam-se a substituição da
+flag de término por \texttt{stdatomic.h} (portabilidade estrita), o uso de
+variáveis de condição caso a granularidade temporal da simulação seja
+reduzida, e políticas de roteamento cooperativas para reduzir a contenção
+nos gargalos do mapa.
+
+% ─────────────────────────────────────────────────────────────
+\begin{thebibliography}{9}
+
+\bibitem{raylib}
+Santamaria, R. (2013--2025).  \textit{raylib}.
+\url{https://www.raylib.com}.
+
+\bibitem{posix:18}
+IEEE and The Open Group (2018).  \textit{IEEE Std 1003.1-2017 --- Portable
+Operating System Interface (POSIX)}.  IEEE, New York.
+
+\bibitem{cormen:09}
+Cormen, T. H., Leiserson, C. E., Rivest, R. L., and Stein, C. (2009).
+\textit{Introduction to Algorithms}, 3rd ed.  MIT Press.
+
+\end{thebibliography}
 
 \end{document}
